@@ -1,1 +1,269 @@
+import pymongo
+import csv
+import os
+from datetime import datetime, timezone # Import timezone for UTC dates
 
+# --- MongoDB Connection Details ---
+MONGO_URI = "mongodb://localhost:27017/" # Default MongoDB URI
+DB_NAME = "ecommerce_chatbot_db"        # Your database name
+
+# Establish a connection to MongoDB
+client = pymongo.MongoClient(MONGO_URI)
+db = client[DB_NAME] # This selects/creates your database
+
+# Define the directory where your CSV files are located
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DATA_DIR = os.path.join(BASE_DIR, 'data')
+
+# --- Helper function for robust date parsing ---
+def parse_date(date_str):
+    if not date_str:
+        return None
+    try:
+        # Assuming format 'YYYY-MM-DD HH:MM:SS UTC'
+        # %Z handles timezone name like UTC
+        return datetime.strptime(date_str, '%Y-%m-%d %H:%M:%S %Z').replace(tzinfo=timezone.utc)
+    except ValueError:
+        # Fallback for dates without timezone if any exist
+        try:
+            return datetime.strptime(date_str, '%Y-%m-%d %H:%M:%S').replace(tzinfo=timezone.utc)
+        except ValueError:
+            return None # Or log an error for unparseable dates
+
+# --- Function to load Products data ---
+def load_products(file_path):
+    products_collection = db['products']
+    products_collection.delete_many({}) # Clear existing data
+    print(f"Loading products from {file_path}...")
+
+    products_to_insert = []
+    try:
+        with open(file_path, mode='r', encoding='utf-8') as file:
+            reader = csv.DictReader(file)
+            for row in reader:
+                document = {
+                    "_id": row.get('id'), # Using CSV 'id' as MongoDB '_id'
+                    "cost": float(row.get('cost')) if row.get('cost') else None,
+                    "category": row.get('category'),
+                    "name": row.get('name'),
+                    "brand": row.get('brand'),
+                    "retail_price": float(row.get('retail_price')) if row.get('retail_price') else None,
+                    "department": row.get('department'),
+                    "sku": row.get('sku')
+                }
+                products_to_insert.append(document)
+
+        if products_to_insert:
+            products_collection.insert_many(products_to_insert)
+            print(f"Successfully inserted {len(products_to_insert)} products.")
+        else:
+            print("No products found to insert.")
+
+    except FileNotFoundError:
+        print(f"Error: CSV file not found at {file_path}")
+    except Exception as e:
+        print(f"An error occurred while loading products: {e}")
+
+# --- Function to load Users data ---
+def load_users(file_path):
+    users_collection = db['users']
+    users_collection.delete_many({}) # Clear existing data
+    print(f"Loading users from {file_path}...")
+
+    users_to_insert = []
+    try:
+        with open(file_path, mode='r', encoding='utf-8') as file:
+            reader = csv.DictReader(file)
+            for row in reader:
+                document = {
+                    "_id": row.get('id'),
+                    "first_name": row.get('first_name'),
+                    "last_name": row.get('last_name'),
+                    "email": row.get('email'),
+                    "gender": row.get('gender'),
+                    "address": { # Nested document for address details
+                        "street": row.get('street_address'),
+                        "city": row.get('city'),
+                        "state": row.get('state'),
+                        "zip": row.get('zip')
+                    },
+                    "created_at": parse_date(row.get('created_at')), # Use helper for date
+                    "age": int(row.get('age')) if row.get('age') else None
+                }
+                users_to_insert.append(document)
+
+        if users_to_insert:
+            users_collection.insert_many(users_to_insert)
+            print(f"Successfully inserted {len(users_to_insert)} users.")
+        else:
+            print("No users found to insert.")
+
+    except FileNotFoundError:
+        print(f"Error: CSV file not found at {file_path}")
+    except Exception as e:
+        print(f"An error occurred while loading users: {e}")
+
+# --- Function to load Orders data ---
+def load_orders(file_path):
+    orders_collection = db['orders']
+    orders_collection.delete_many({}) # Clear existing data
+    print(f"Loading orders from {file_path}...")
+
+    orders_to_insert = []
+    try:
+        with open(file_path, mode='r', encoding='utf-8') as file:
+            reader = csv.DictReader(file)
+            for row in reader:
+                document = {
+                    "_id": row.get('id'),
+                    "user_id": row.get('user_id'),
+                    "status": row.get('status'),
+                    "gender": row.get('gender'),
+                    "created_at": parse_date(row.get('created_at')),
+                    "returned_at": parse_date(row.get('returned_at')),
+                    "delivered_at": parse_date(row.get('delivered_at')),
+                    "shipped_at": parse_date(row.get('shipped_at'))
+                }
+                orders_to_insert.append(document)
+
+        if orders_to_insert:
+            orders_collection.insert_many(orders_to_insert)
+            print(f"Successfully inserted {len(orders_to_insert)} orders.")
+        else:
+            print("No orders found to insert.")
+
+    except FileNotFoundError:
+        print(f"Error: CSV file not found at {file_path}")
+    except Exception as e:
+        print(f"An error occurred while loading orders: {e}")
+
+# --- Function to load Order Items data ---
+def load_order_items(file_path):
+    order_items_collection = db['order_items']
+    order_items_collection.delete_many({}) # Clear existing data
+    print(f"Loading order items from {file_path}...")
+
+    items_to_insert = []
+    try:
+        with open(file_path, mode='r', encoding='utf-8') as file:
+            reader = csv.DictReader(file)
+            for row in reader:
+                document = {
+                    "_id": row.get('id'),
+                    "order_id": row.get('order_id'),
+                    "user_id": row.get('user_id'),
+                    "product_id": row.get('product_id'),
+                    "inventory_item_id": row.get('inventory_item_id'),
+                    "status": row.get('status'),
+                    "created_at": parse_date(row.get('created_at')),
+                    "shipped_at": parse_date(row.get('shipped_at')),
+                    "delivered_at": parse_date(row.get('delivered_at')),
+                    "returned_at": parse_date(row.get('returned_at')),
+                    "sale_price": float(row.get('sale_price')) if row.get('sale_price') else None
+                }
+                items_to_insert.append(document)
+
+        if items_to_insert:
+            order_items_collection.insert_many(items_to_insert)
+            print(f"Successfully inserted {len(items_to_insert)} order items.")
+        else:
+            print("No order items found to insert.")
+
+    except FileNotFoundError:
+        print(f"Error: CSV file not found at {file_path}")
+    except Exception as e:
+        print(f"An error occurred while loading order items: {e}")
+
+# --- Function to load Inventory Items data ---
+# (You already have a version of this, but including it for completeness)
+def load_inventory_items(file_path):
+    inventory_collection = db['inventory_items']
+    inventory_collection.delete_many({}) # Clear existing data
+    print(f"Loading inventory items from {file_path}...")
+
+    items_to_insert = []
+    try:
+        with open(file_path, mode='r', encoding='utf-8') as file:
+            reader = csv.DictReader(file)
+            for row in reader:
+                document = {
+                    "_id": row.get('id'),
+                    "product_id": row.get('product_id'),
+                    "created_at": parse_date(row.get('created_at')),
+                    "sold_at": parse_date(row.get('sold_at')),
+                    "cost": float(row.get('cost')) if row.get('cost') else None,
+                    "product_category": row.get('product_category'),
+                    "product_name": row.get('product_name'),
+                    "product_brand": row.get('product_brand'),
+                    "product_retail_price": float(row.get('product_retail_price')) if row.get('product_retail_price') else None,
+                    "product_department": row.get('product_department'),
+                    "product_sku": row.get('product_sku'),
+                    "distribution_center_id": row.get('product_distribution_center_id')
+                }
+                items_to_insert.append(document)
+
+        if items_to_insert:
+            inventory_collection.insert_many(items_to_insert)
+            print(f"Successfully inserted {len(items_to_insert)} inventory items.")
+        else:
+            print("No inventory items found to insert.")
+
+    except FileNotFoundError:
+        print(f"Error: CSV file not found at {file_path}")
+    except Exception as e:
+        print(f"An error occurred while loading inventory items: {e}")
+
+# --- Function to load Distribution Centers data ---
+def load_distribution_centers(file_path):
+    dc_collection = db['distribution_centers']
+    dc_collection.delete_many({}) # Clear existing data
+    print(f"Loading distribution centers from {file_path}...")
+
+    dcs_to_insert = []
+    try:
+        with open(file_path, mode='r', encoding='utf-8') as file:
+            reader = csv.DictReader(file)
+            for row in reader:
+                document = {
+                    "_id": row.get('id'),
+                    "name": row.get('name'),
+                    "latitude": float(row.get('latitude')) if row.get('latitude') else None,
+                    "longitude": float(row.get('longitude')) if row.get('longitude') else None
+                }
+                dcs_to_insert.append(document)
+
+        if dcs_to_insert:
+            dc_collection.insert_many(dcs_to_insert)
+            print(f"Successfully inserted {len(dcs_to_insert)} distribution centers.")
+        else:
+            print("No distribution centers found to insert.")
+
+    except FileNotFoundError:
+        print(f"Error: CSV file not found at {file_path}")
+    except Exception as e:
+        print(f"An error occurred while loading distribution centers: {e}")
+
+
+# --- Main function to run the data loading ---
+def main():
+    print(f"Connecting to MongoDB database: {DB_NAME}")
+
+    if not os.path.exists(DATA_DIR):
+        print(f"Error: Data directory not found at {DATA_DIR}. Please ensure your CSV files are in a 'data' folder inside your 'backend' directory.")
+        client.close()
+        return
+
+    # Call all loading functions
+    load_products(os.path.join(DATA_DIR, 'products.csv'))
+    load_users(os.path.join(DATA_DIR, 'users.csv'))
+    load_orders(os.path.join(DATA_DIR, 'orders.csv'))
+    load_order_items(os.path.join(DATA_DIR, 'order_items.csv'))
+    load_inventory_items(os.path.join(DATA_DIR, 'inventory_items.csv'))
+    load_distribution_centers(os.path.join(DATA_DIR, 'distribution_centers.csv'))
+
+
+    print("Data loading process finished. Closing MongoDB connection.")
+    client.close()
+
+if __name__ == "__main__":
+    main()
