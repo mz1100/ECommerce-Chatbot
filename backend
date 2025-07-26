@@ -1,1 +1,42 @@
+# Add this function to your load_data.py
+def load_inventory_items(file_path):
+    inventory_collection = db['inventory_items']
+    inventory_collection.delete_many({}) # Clear existing data
+    print(f"Loading inventory items from {file_path}...")
 
+    items_to_insert = []
+    try:
+        with open(file_path, mode='r', encoding='utf-8') as file:
+            reader = csv.DictReader(file)
+            for row in reader:
+                # --- Map CSV columns to MongoDB document fields ---
+                # Columns in inventory_items.csv are:
+                # id, product_id, created_at, sold_at, cost, product_category, product_name,
+                # product_brand, product_retail_price, product_department, product_sku, product_distribution_center_id
+
+                document = {
+                    "_id": row.get('id'), # Use CSV 'id' as MongoDB '_id'
+                    "product_id": row.get('product_id'),
+                    "created_at": row.get('created_at'), # Consider converting to datetime object later if needed
+                    "sold_at": row.get('sold_at'),       # Consider converting to datetime object later if needed
+                    "cost": float(row.get('cost')) if row.get('cost') else None,
+                    "product_category": row.get('product_category'),
+                    "product_name": row.get('product_name'),
+                    "product_brand": row.get('product_brand'),
+                    "product_retail_price": float(row.get('product_retail_price')) if row.get('product_retail_price') else None,
+                    "product_department": row.get('product_department'),
+                    "product_sku": row.get('product_sku'),
+                    "distribution_center_id": row.get('product_distribution_center_id') # Renamed for clarity
+                }
+                items_to_insert.append(document)
+
+        if items_to_insert:
+            inventory_collection.insert_many(items_to_insert)
+            print(f"Successfully inserted {len(items_to_insert)} inventory items.")
+        else:
+            print("No inventory items found to insert.")
+
+    except FileNotFoundError:
+        print(f"Error: CSV file not found at {file_path}")
+    except Exception as e:
+        print(f"An error occurred while loading inventory items: {e}")
